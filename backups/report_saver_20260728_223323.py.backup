@@ -1,0 +1,42 @@
+from pathlib import Path
+from datetime import datetime
+
+
+REPORT_FOLDER = Path("market_reports")
+REPORT_FOLDER.mkdir(exist_ok=True)
+
+
+def get_next_report_path():
+    existing = sorted(REPORT_FOLDER.glob("market_report_*.md"))
+
+    if not existing:
+        number = 1
+    else:
+        last = int(existing[-1].stem.split("_")[-1])
+        number = last + 1
+
+    return REPORT_FOLDER / f"market_report_{number:03}.md"
+
+
+def save_market_report(query, report):
+    path = get_next_report_path()
+
+    content = f"""# Market Research Report
+
+## Query
+
+{query}
+
+---
+
+Generated:
+{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+---
+
+{report}
+"""
+
+    path.write_text(content, encoding="utf-8")
+
+    return path
