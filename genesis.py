@@ -1,12 +1,22 @@
 from pathlib import Path
 
 from brain import ask_ai
-from research_worker import run_research_assignment
 from memory import load_company_context
+from workers.research_worker import ResearchWorker
+from core.worker_report import ReportStatus
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
 REPORTS_FOLDER = Path("research_reports")
+
+# ── Worker Registry ──────────────────────────────────────────────────────────
+# Central lookup table for all migrated workers.
+# Phase 3 registers Research Worker only.
+# Phase 4 will add ProductEvaluatorWorker, MarketIntelligenceWorker, etc.
+
+WORKER_REGISTRY = {
+    "research": ResearchWorker(),
+}
 
 
 def show_company_memory():
@@ -162,7 +172,17 @@ def handle_command(command):
             print("Research assignment cancelled.")
             return
 
-        result, report_path = run_research_assignment(target)
+        # ── Route through Worker Framework ───────────────────────────
+        report = WORKER_REGISTRY["research"].run_lifecycle(target)
+
+        if report.status == ReportStatus.FAILURE:
+            print()
+            print("Genesis Status")
+            print("✗ Research Worker failed.")
+            print(f"Error: {report.error}")
+            return
+
+        result, report_path = report.result
 
         print()
         print("Research Result:")

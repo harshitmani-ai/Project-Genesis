@@ -1,139 +1,112 @@
+"""
+research_worker.py  (Compatibility Proxy — Phase 2)
+
+This file is the backward-compatible entry point for the Research Worker.
+
+It preserves 100% of the original public interface so that all existing
+callers (genesis.py, direct CLI use, and any future imports) continue to
+work without any modification:
+
+  ✓  run_research_assignment(audience)  →  (result_text, report_path)
+  ✓  python research_worker.py          →  interactive CLI (unchanged)
+
+All actual logic now lives in workers/research_worker.py (ResearchWorker).
+This file simply delegates to that class and unpacks the WorkerReport into
+the legacy return signature.
+
+Phase 2: Research Worker Migration — genesis.py is NOT modified.
+
+Rollback: Restore this file from backups/research_worker_<timestamp>.backup
+          and delete workers/ to fully revert Phase 2.
+"""
+
+# ── Imports preserved from the original for any code that does:
+#    from research_worker import REPORTS_FOLDER, COMPANY_MEMORY_FILE, etc.
 from datetime import datetime
 from pathlib import Path
 
 from brain import ask_ai
 from memory import load_company_context
 
+# ── Phase 2: delegate to the new worker class ──────────────────────────────
+from workers.research_worker import ResearchWorker
+from core.worker_report import ReportStatus
 
+# ── Constants (preserved — referenced by genesis.py and other callers) ──────
 REPORTS_FOLDER = Path("research_reports")
 COMPANY_MEMORY_FILE = Path("company_memory.md")
 
 
-def get_next_report_path():
-    REPORTS_FOLDER.mkdir(exist_ok=True)
+# ──────────────────────────────────────────────────────────────────────────────
+# Public API  (100% backward-compatible signatures)
+# ──────────────────────────────────────────────────────────────────────────────
 
-    existing_reports = list(
-        REPORTS_FOLDER.glob("research_report_*.md")
+def run_research_assignment(target_audience: str) -> tuple:
+    """
+    Run a full research assignment and return (result_text, report_path).
+
+    This function preserves the original return signature exactly.
+    Internally it delegates to ResearchWorker.run_lifecycle() so that
+    the new BaseWorker lifecycle (logging, verification, learn step) runs
+    while the caller receives the same tuple it always has.
+
+    Args:
+        target_audience: The audience or industry to research.
+
+    Returns:
+        (result_text: str, report_path: Path)  — identical to original.
+
+    Raises:
+        RuntimeError: If the worker lifecycle fails (mirrors the original
+                      behaviour where an uncaught exception would propagate).
+    """
+    worker = ResearchWorker()
+    report = worker.run_lifecycle(target_audience)
+
+    if report.status in (ReportStatus.SUCCESS, ReportStatus.PARTIAL):
+        # report.result is the (text, path) tuple returned by execute()
+        result_text, report_path = report.result
+        return result_text, report_path
+
+    # Lifecycle failed — raise so callers see the same exception-based
+    # error surface as the original code.
+    raise RuntimeError(
+        f"Research Worker failed: {report.error}"
     )
 
-    next_number = len(existing_reports) + 1
 
-    return REPORTS_FOLDER / f"research_report_{next_number:03}.md"
+# ──────────────────────────────────────────────────────────────────────────────
+# Legacy helper functions
+# (Preserved so that any code importing them directly still works)
+# ──────────────────────────────────────────────────────────────────────────────
 
-
-def research_product_ideas(target_audience):
-    company_context = load_company_context()
-
-    prompt = f"""
-You are the Research AI worker for Project Genesis.
-
-{company_context}
-
-Your assignment is to identify profitable AI product opportunities for this target audience:
-
-{target_audience}
-
-Generate exactly 3 preliminary product hypotheses.
-
-For every product include:
-
-1. Product name
-2. Customer problem
-3. Proposed AI solution
-4. Why customers may pay
-5. Difficulty score out of 10
-6. Profit potential score out of 10
-7. Main risk
-8. Validation required
-
-Important rules:
-
-- Do not pretend that you performed live internet research.
-- Do not present estimated numbers as verified facts.
-- Clearly label every idea as an unvalidated hypothesis.
-- Follow the Project Genesis Constitution.
-- Use clear Markdown formatting.
-"""
-
-    return ask_ai(prompt)
+def get_next_report_path() -> Path:
+    """Preserved for backward compatibility. Delegates to internal helper."""
+    from workers.research_worker import _get_next_report_path
+    return _get_next_report_path()
 
 
-def save_research_report(target_audience, research_result):
-    report_path = get_next_report_path()
-
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    complete_report = f"""# Project Genesis Research Report
-
-**Created:** {current_time}
-
-**Prepared by:** Research AI
-
-**Target audience:** {target_audience}
-
-**Status:** Preliminary and unvalidated
-
----
-
-## Important Notice
-
-This report was generated using AI reasoning and existing company context.
-
-It does not contain verified live market research unless clearly stated.
-
-Customer interviews and external validation are required before development begins.
-
----
-
-{research_result}
-
----
-
-## Current Decision
-
-No product has been approved automatically.
-
-Final product selection requires review and approval from Harshit, Founder of Project Genesis.
-"""
-
-    report_path.write_text(
-        complete_report,
-        encoding="utf-8",
-    )
-
-    return report_path
+def research_product_ideas(target_audience: str) -> str:
+    """Preserved for backward compatibility. Delegates to internal helper."""
+    from workers.research_worker import _research_product_ideas
+    return _research_product_ideas(target_audience)
 
 
-def update_company_memory(target_audience, report_path):
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    memory_entry = f"""
-
----
-
-## Research Activity
-
-**Date:** {current_time}
-
-**Research topic:** {target_audience}
-
-**Report location:** {report_path}
-
-**Status:** Research completed. Product ideas remain unvalidated.
-
-**Founder approval:** Pending
-"""
-
-    with COMPANY_MEMORY_FILE.open("a", encoding="utf-8") as memory_file:
-        memory_file.write(memory_entry)
+def save_research_report(target_audience: str, research_result: str) -> Path:
+    """Preserved for backward compatibility. Delegates to internal helper."""
+    from workers.research_worker import _save_research_report
+    return _save_research_report(target_audience, research_result)
 
 
-def run_research_assignment(target_audience):
-    result = research_product_ideas(target_audience)
-    report_path = save_research_report(target_audience, result)
-    update_company_memory(target_audience, report_path)
-    return result, report_path
+def update_company_memory(target_audience: str, report_path: Path) -> None:
+    """Preserved for backward compatibility. Delegates to internal helper."""
+    from workers.research_worker import _update_company_memory
+    _update_company_memory(target_audience, report_path)
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CLI entry point  (100% identical behaviour to original)
+# ──────────────────────────────────────────────────────────────────────────────
 
 def main():
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
