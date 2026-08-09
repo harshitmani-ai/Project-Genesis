@@ -8,6 +8,7 @@ from workers.marketing_worker import MarketingWorker
 from workers.finance_worker import FinanceWorker
 from core.worker_report import ReportStatus
 from core.orchestrator import WorkerOrchestrator
+from core.memory_governor import MemoryGovernor
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
@@ -35,6 +36,11 @@ ORCHESTRATOR = WorkerOrchestrator(WORKER_REGISTRY)
 
 DEFAULT_PIPELINE = ["research", "acquisition", "marketing", "finance"]
 
+# ── Memory Governor ───────────────────────────────────────────────────────────
+# Phase 8: Sole authority for committing memory proposals to company_memory.md.
+
+GOVERNOR = MemoryGovernor()
+
 
 def show_company_memory():
     if not COMPANY_MEMORY_FILE.exists():
@@ -60,6 +66,36 @@ def show_research_reports():
 
 {report_list}
 """
+
+
+def show_proposals():
+    """Return a human-readable summary of pending memory proposals."""
+    return GOVERNOR.proposals_summary()
+
+
+def should_show_proposals(command):
+    proposal_commands = [
+        "show proposals",
+        "list proposals",
+        "pending proposals",
+        "memory proposals",
+        "show memory proposals",
+        "review proposals",
+    ]
+    command_lower = command.lower()
+    return any(phrase in command_lower for phrase in proposal_commands)
+
+
+def should_approve_proposals(command):
+    approve_commands = [
+        "approve proposals",
+        "approve memory proposals",
+        "merge proposals",
+        "commit proposals",
+        "approve all proposals",
+    ]
+    command_lower = command.lower()
+    return any(phrase in command_lower for phrase in approve_commands)
 
 
 def should_run_research(command):
@@ -398,6 +434,25 @@ def handle_command(command):
     if should_show_reports(command):
         print()
         print(show_research_reports())
+        return
+
+    # ── Memory Governance ─────────────────────────────────────────────────
+    if should_show_proposals(command):
+        print()
+        print(show_proposals())
+        return
+
+    if should_approve_proposals(command):
+        print()
+        print("Memory Governor — merging all approved proposals…")
+        results = GOVERNOR.merge_all()
+        for result in results:
+            print(f"  {result}")
+        print()
+        print("Genesis Status")
+        print("✓ All pending memory proposals processed.")
+        print("✓ Merged proposals are now part of company_memory.md.")
+        print("✓ Audit log updated in company_memory/audit_log.md.")
         return
 
     if should_run_research(command):

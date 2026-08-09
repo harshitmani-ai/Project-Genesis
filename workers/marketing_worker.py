@@ -22,11 +22,11 @@ from typing import Any
 
 from brain import ask_ai
 from core import BaseWorker, WorkerIdentity
+from core.memory_interface import MemoryInterface
 from memory import load_company_context
 
 
 REPORTS_FOLDER = Path("marketing_reports")
-COMPANY_MEMORY_FILE = Path("company_memory.md")
 
 
 def _get_next_report_path() -> Path:
@@ -140,17 +140,14 @@ Final approval for public campaign launch belongs to Harshit, Founder of Project
 
 def _update_company_memory(product_info: str, report_path: Path) -> None:
     """
-    Append a Marketing Activity entry to company_memory.md.
+    Submit a governed memory proposal for this marketing activity.
+
+    Phase 8: Direct writes to company_memory.md are replaced with a
+    proposal submitted via MemoryInterface.propose_update().
     """
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    content = f"""## Marketing Activity
 
-    memory_entry = f"""
-
----
-
-## Marketing Activity
-
-**Date:** {current_time}
+**Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 **Product / Target:** {product_info}
 
@@ -160,9 +157,11 @@ def _update_company_memory(product_info: str, report_path: Path) -> None:
 
 **Founder approval:** Pending
 """
-
-    with COMPANY_MEMORY_FILE.open("a", encoding="utf-8") as memory_file:
-        memory_file.write(memory_entry)
+    MemoryInterface().propose_update(
+        worker_name="Marketing Worker",
+        topic=f"Marketing — {product_info[:50]}",
+        content=content,
+    )
 
 
 class MarketingWorker(BaseWorker):

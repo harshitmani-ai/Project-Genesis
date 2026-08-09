@@ -22,11 +22,11 @@ from typing import Any
 
 from brain import ask_ai
 from core import BaseWorker, WorkerIdentity
+from core.memory_interface import MemoryInterface
 from memory import load_company_context
 
 
 REPORTS_FOLDER = Path("acquisition_reports")
-COMPANY_MEMORY_FILE = Path("company_memory.md")
 
 
 def _get_next_report_path() -> Path:
@@ -119,17 +119,14 @@ Final approval for outreach campaigns belongs to Harshit, Founder of Project Gen
 
 def _update_company_memory(icp: str, report_path: Path) -> None:
     """
-    Append an Acquisition Activity entry to company_memory.md.
+    Submit a governed memory proposal for this acquisition activity.
+
+    Phase 8: Direct writes to company_memory.md are replaced with a
+    proposal submitted via MemoryInterface.propose_update().
     """
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    content = f"""## Acquisition Activity
 
-    memory_entry = f"""
-
----
-
-## Acquisition Activity
-
-**Date:** {current_time}
+**Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 **Target ICP:** {icp}
 
@@ -139,9 +136,11 @@ def _update_company_memory(icp: str, report_path: Path) -> None:
 
 **Founder approval:** Pending
 """
-
-    with COMPANY_MEMORY_FILE.open("a", encoding="utf-8") as memory_file:
-        memory_file.write(memory_entry)
+    MemoryInterface().propose_update(
+        worker_name="Acquisition Worker",
+        topic=f"Acquisition — {icp[:50]}",
+        content=content,
+    )
 
 
 class AcquisitionWorker(BaseWorker):

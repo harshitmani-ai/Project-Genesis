@@ -9,7 +9,7 @@ original research_worker.py behaviour:
 
   ✓ Identical LLM prompt text
   ✓ Identical report Markdown format
-  ✓ Identical company_memory.md append format
+  ✓ Identical company_memory.md append format (now via governed proposal)
   ✓ Identical return signature  →  (result_text: str, report_path: Path)
 
 Callers that used the legacy root-level research_worker.py continue to
@@ -24,6 +24,7 @@ from typing import Any
 
 from brain import ask_ai
 from core import BaseWorker, WorkerIdentity, WorkerReport
+from core.memory_interface import MemoryInterface
 from memory import load_company_context
 
 
@@ -32,7 +33,6 @@ from memory import load_company_context
 # ──────────────────────────────────────────────────────────────────────────────
 
 REPORTS_FOLDER = Path("research_reports")
-COMPANY_MEMORY_FILE = Path("company_memory.md")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -139,20 +139,15 @@ Final product selection requires review and approval from Harshit, Founder of Pr
 
 def _update_company_memory(target_audience: str, report_path: Path) -> None:
     """
-    Append a Research Activity entry to company_memory.md.
+    Submit a governed memory proposal for this research activity.
 
-    Entry format is character-for-character identical to the original
-    research_worker.py to guarantee zero memory regression.
+    Phase 8: Direct writes to company_memory.md are replaced with a
+    proposal submitted via MemoryInterface.propose_update().  The Founder
+    reviews and merges proposals through the MemoryGovernor.
     """
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    content = f"""## Research Activity
 
-    memory_entry = f"""
-
----
-
-## Research Activity
-
-**Date:** {current_time}
+**Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 **Research topic:** {target_audience}
 
@@ -162,9 +157,11 @@ def _update_company_memory(target_audience: str, report_path: Path) -> None:
 
 **Founder approval:** Pending
 """
-
-    with COMPANY_MEMORY_FILE.open("a", encoding="utf-8") as memory_file:
-        memory_file.write(memory_entry)
+    MemoryInterface().propose_update(
+        worker_name="Research Worker",
+        topic=f"Research — {target_audience[:50]}",
+        content=content,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -265,25 +262,23 @@ class ResearchWorker(BaseWorker):
 
     def learn(self, task: Any, result: tuple[str, Path]) -> None:
         """
-        Append the Research Activity entry to company_memory.md.
+        Submit a governed memory proposal for the completed research assignment.
 
-        Behaviour is identical to the original update_company_memory():
-        a direct append to company_memory.md so that Genesis and all
-        existing callers continue to see the update immediately.
-
-        Note: Phase 3 will introduce the MemoryInterface staging path.
-        For Phase 2, the direct write is preserved for 100% parity.
+        Phase 8: Replaces the direct company_memory.md append with a
+        MemoryInterface.propose_update() call.  The proposal is staged in
+        company_memory/proposals/ and requires Founder approval via
+        MemoryGovernor before it is committed.
 
         Args:
             task:   Target audience string (original task).
             result: (result_text, report_path) tuple from execute().
 
         Returns:
-            None — direct write requires no proposal path.
+            None — proposal path is captured by BaseWorker._run_learn_step.
         """
         _, report_path = result
         target_audience = str(task).strip()
 
         _update_company_memory(target_audience, report_path)
-        self.logger.info("Company memory updated.")
+        self.logger.info("Memory proposal submitted for Founder review.")
         return None
