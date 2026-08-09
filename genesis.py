@@ -10,6 +10,9 @@ from core.worker_report import ReportStatus
 from core.orchestrator import WorkerOrchestrator
 from core.memory_governor import MemoryGovernor
 from core.task_planner import TaskPlanner
+from core.tool_manager import DEFAULT_TOOL_MANAGER
+from core.skill_manager import SkillManager
+from core.task_queue import Task, TaskQueue, TaskResult, TaskStatus
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
@@ -46,6 +49,22 @@ GOVERNOR = MemoryGovernor()
 # Phase 9: Intelligent intent routing for natural language requests.
 
 PLANNER = TaskPlanner()
+
+# ── Tool Manager ────────────────────────────────────────────────────────────
+# Phase 10: Shared tool registry accessible to all components.
+
+TOOL_MANAGER = DEFAULT_TOOL_MANAGER
+
+# ── Skill Manager ───────────────────────────────────────────────────────────
+# Phase 11: Auto-discovers and loads skills from skills/ at startup.
+
+SKILL_MANAGER = SkillManager()
+_discovered = SKILL_MANAGER.discover()
+
+# ── Task Queue ───────────────────────────────────────────────────────────
+# Phase 12: Autonomous task queue for breaking large goals into tracked steps.
+
+TASK_QUEUE = TaskQueue()
 
 
 def show_company_memory():
@@ -102,6 +121,255 @@ def should_approve_proposals(command):
     ]
     command_lower = command.lower()
     return any(phrase in command_lower for phrase in approve_commands)
+
+
+def show_tools():
+    """Return a human-readable listing of all registered tools."""
+    return TOOL_MANAGER.tool_summary()
+
+
+def should_show_tools(command):
+    tool_commands = [
+        "show tools",
+        "list tools",
+        "available tools",
+        "what tools",
+        "show tool registry",
+    ]
+    command_lower = command.lower()
+    return any(phrase in command_lower for phrase in tool_commands)
+
+
+def show_skills():
+    """Return a human-readable listing of all discovered skills."""
+    return SKILL_MANAGER.skills_summary()
+
+
+def should_show_skills(command):
+    skill_commands = [
+        "show skills",
+        "list skills",
+        "available skills",
+        "what skills",
+        "show skill registry",
+    ]
+    command_lower = command.lower()
+    return any(phrase in command_lower for phrase in skill_commands)
+
+
+def should_run_skill(command):
+    """Return the skill name if the command explicitly requests a skill, else None."""
+    command_lower = command.lower()
+    for skill_name in SKILL_MANAGER.list_skills():
+        if skill_name.replace("_", " ") in command_lower or skill_name in command_lower:
+            return skill_name
+    return None
+
+
+def remove_skill_instruction(command, skill_name):
+    """Strip the skill name trigger from the command to get the clean goal."""
+    import re
+    cleaned = re.sub(re.escape(skill_name.replace("_", " ")), "", command, flags=re.IGNORECASE)
+    cleaned = re.sub(re.escape(skill_name), "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip(" :.-")
+
+
+# ── Phase 12: Task Queue helpers ──────────────────────────────────────────────
+
+def should_show_tasks(command):
+    task_commands = [
+        "show tasks",
+        "list tasks",
+        "show task queue",
+        "view tasks",
+        "task queue",
+        "show queue",
+    ]
+    return any(phrase in command.lower() for phrase in task_commands)
+
+
+def should_run_next_task(command):
+    next_commands = [
+        "next task",
+        "run next task",
+        "execute next task",
+        "run next",
+    ]
+    return any(phrase in command.lower() for phrase in next_commands)
+
+
+def should_retry_failed(command):
+    retry_commands = [
+        "retry failed",
+        "retry failed tasks",
+        "re-run failed",
+    ]
+    return any(phrase in command.lower() for phrase in retry_commands)
+
+
+def should_clear_completed(command):
+    clear_commands = [
+        "clear completed",
+        "clear completed tasks",
+        "remove completed",
+        "clean queue",
+    ]
+    return any(phrase in command.lower() for phrase in clear_commands)
+
+
+def should_build_task_plan(command):
+    build_commands = [
+        "build ",
+        "plan tasks for",
+        "create task plan",
+        "break down",
+        "decompose",
+        "queue tasks for",
+    ]
+    return any(phrase in command.lower() for phrase in build_commands)
+
+
+def extract_build_goal(command):
+    """Extract the goal from a 'build <goal>' command."""
+    import re
+    prefixes = [
+        r"^build\s+",
+        r"^plan tasks for\s+",
+        r"^create task plan for\s+",
+        r"^break down\s+",
+        r"^decompose\s+",
+        r"^queue tasks for\s+",
+    ]
+    text = command.strip()
+    for pattern in prefixes:
+        cleaned = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+        if cleaned and cleaned != text:
+            return cleaned
+    return text
+
+
+def build_task_plan(goal):
+    """
+    Ask the TaskPlanner to decompose goal, create Tasks, and load the queue.
+    Returns (task_count, task_titles_list).
+    """
+    task_dicts = PLANNER.plan_tasks(
+        goal,
+        available_workers=list(WORKER_REGISTRY.keys()),
+        available_skills=SKILL_MANAGER.list_skills(),
+    )
+
+    if not task_dicts:
+        return 0, []
+
+    # First pass: create tasks without dependency IDs (just titles)
+    title_to_task: dict[str, Task] = {}
+    for tdict in task_dicts:
+        task = Task(
+            title=tdict["title"],
+            description=tdict["description"],
+            assigned_to=tdict["assigned_to"],
+            assigned_type=tdict.get("assigned_type", "worker"),
+            priority=tdict.get("priority", 5),
+            dependencies=[],  # filled in second pass
+        )
+        title_to_task[tdict["title"]] = task
+
+    # Second pass: resolve title-based deps to task IDs
+    for tdict in task_dicts:
+        task = title_to_task[tdict["title"]]
+        for dep_title in tdict.get("dependencies", []):
+            dep_task = title_to_task.get(dep_title)
+            if dep_task:
+                task.dependencies.append(dep_task.id)
+
+    # Add to queue
+    for task in title_to_task.values():
+        TASK_QUEUE.add(task)
+    TASK_QUEUE.refresh_readiness()
+
+    return len(title_to_task), list(title_to_task.keys())
+
+
+def execute_next_task():
+    """
+    Execute the highest-priority READY task from TASK_QUEUE.
+    Returns a descriptive string of what happened.
+    """
+    import time
+
+    TASK_QUEUE.refresh_readiness()
+    task = TASK_QUEUE.get_next()
+
+    if task is None:
+        if TASK_QUEUE.is_empty():
+            return "Task Queue is empty. Use 'build <goal>' to create a task plan."
+        pending = TASK_QUEUE.pending_count()
+        if pending > 0:
+            return f"No READY tasks — {pending} task(s) are waiting for dependencies."
+        return "All tasks are complete or failed."
+
+    TASK_QUEUE.update_status(task.id, TaskStatus.RUNNING)
+
+    start = time.perf_counter()
+    output = None
+    error = None
+    success = False
+
+    try:
+        # Build context from completed tasks
+        context_parts = []
+        for completed_task in TASK_QUEUE.get_all(status=TaskStatus.COMPLETED):
+            if completed_task.result and completed_task.result.output:
+                out = completed_task.result.output
+                if hasattr(out, "combined_summary"):
+                    context_parts.append(f"[{completed_task.title}]: {out.combined_summary[:200]}")
+
+        context_prefix = ""
+        if context_parts:
+            context_prefix = "Prior context:\n" + "\n".join(context_parts) + "\n\n"
+
+        full_goal = context_prefix + task.description
+
+        if task.assigned_type == "skill":
+            skill_result = SKILL_MANAGER.execute(
+                task.assigned_to,
+                goal=full_goal,
+                worker_registry=WORKER_REGISTRY,
+                orchestrator=ORCHESTRATOR,
+                tool_manager=TOOL_MANAGER,
+            )
+            success = skill_result.success
+            output = skill_result
+            error = skill_result.error
+        else:
+            # Worker execution
+            if task.assigned_to not in WORKER_REGISTRY:
+                raise KeyError(f"Worker '{task.assigned_to}' not found in registry.")
+            worker_report = WORKER_REGISTRY[task.assigned_to].run_lifecycle(full_goal)
+            from core.worker_report import ReportStatus
+            success = worker_report.status == ReportStatus.SUCCESS
+            output = worker_report
+            error = worker_report.error if not success else None
+
+    except Exception as exc:
+        success = False
+        error = f"{type(exc).__name__}: {exc}"
+
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+
+    task_result = TaskResult(
+        task_id=task.id,
+        task_title=task.title,
+        success=success,
+        output=output,
+        error=error,
+        execution_time_ms=elapsed_ms,
+    )
+
+    TASK_QUEUE.record_result(task.id, task_result)
+
+    return task_result
 
 
 def should_run_research(command):
@@ -442,7 +710,128 @@ def handle_command(command):
         print(show_research_reports())
         return
 
-    # ── Memory Governance ─────────────────────────────────────────────────
+    # ── Tool Registry ──────────────────────────────────────────────────────
+    if should_show_tools(command):
+        print()
+        print(show_tools())
+        return
+
+    # ── Task Queue ─────────────────────────────────────────────────────────
+    if should_show_tasks(command):
+        print()
+        print(TASK_QUEUE.view())
+        return
+
+    if should_run_next_task(command):
+        print()
+        result = execute_next_task()
+        if isinstance(result, str):
+            print(result)
+        else:
+            print(result)
+            if result.success:
+                print()
+                print("Genesis Status")
+                print(f"✓ Task '{result.task_title}' completed ({result.execution_time_ms:.0f}ms)")
+                print(f"✓ {TASK_QUEUE.ready_count()} task(s) ready to run")
+                print(f"✓ {TASK_QUEUE.pending_count()} task(s) waiting on dependencies")
+            else:
+                print()
+                print("Genesis Status")
+                print(f"✗ Task '{result.task_title}' failed")
+                print(f"  Error: {result.error}")
+                print("  Use 'retry failed tasks' to re-queue.")
+        return
+
+    if should_retry_failed(command):
+        count = TASK_QUEUE.retry_failed()
+        print()
+        print(f"Genesis — re-queued {count} failed task(s) back to PENDING.")
+        print(TASK_QUEUE.view())
+        return
+
+    if should_clear_completed(command):
+        count = TASK_QUEUE.clear_completed()
+        print()
+        print(f"Genesis — cleared {count} completed task(s) from queue.")
+        return
+
+    if should_build_task_plan(command):
+        goal = extract_build_goal(command)
+        print()
+        print(f"Genesis — generating task plan for: {goal}")
+        print("Asking Task Planner to decompose goal…")
+        task_count, titles = build_task_plan(goal)
+        if task_count == 0:
+            print("Task Planner could not generate tasks. Try a more specific goal.")
+            return
+        print()
+        print(f"✓ Created {task_count} tasks:")
+        for i, title in enumerate(titles, 1):
+            print(f"  {i}. {title}")
+        print()
+        print(TASK_QUEUE.view())
+        print()
+        print("Genesis Status")
+        print(f"✓ {task_count} tasks queued. Use 'next task' to start execution.")
+        return
+
+    # ── Skill Registry ─────────────────────────────────────────────────────
+    if should_show_skills(command):
+        print()
+        print(show_skills())
+        return
+
+    skill_name = should_run_skill(command)
+    if skill_name:
+        goal = remove_skill_instruction(command, skill_name)
+        if not goal:
+            goal = input(
+                f"What goal should the '{skill_name}' skill work on? "
+            ).strip()
+        if not goal:
+            print(f"Skill '{skill_name}' cancelled.")
+            return
+
+        print()
+        print(f"Genesis — running Skill: {skill_name}")
+        print(f"Goal: {goal}")
+
+        skill_result = SKILL_MANAGER.execute(
+            skill_name,
+            goal=goal,
+            worker_registry=WORKER_REGISTRY,
+            orchestrator=ORCHESTRATOR,
+            tool_manager=TOOL_MANAGER,
+        )
+
+        print()
+        print(skill_result)
+
+        if skill_result.success and hasattr(skill_result.output, "combined_summary"):
+            final_report = skill_result.output
+            print()
+            print("═" * 60)
+            print(f"SKILL REPORT — {skill_name.replace('_', ' ').title()}")
+            print("═" * 60)
+            print()
+            print("Combined Recommendation:")
+            print(final_report.combined_summary)
+            print()
+            print("Consolidated Risks:")
+            print(final_report.risks)
+            print()
+            print("Next Actions for Founder:")
+            print(final_report.next_actions)
+
+        print()
+        print("Genesis Status")
+        print(f"✓ Skill '{skill_name}' completed")
+        print(f"✓ Workers used: {', '.join(skill_result.workers_used)}")
+        print("✓ Founder approval is still required")
+        return
+
+    # ── Memory Governance ──────────────────────────────────────────────────
     if should_show_proposals(command):
         print()
         print(show_proposals())

@@ -1,0 +1,9 @@
+{
+    "name": "business_evaluation",
+    "version": "1.0.0",
+    "description": "Evaluate a business idea's viability and financials: Research → Finance.",
+    "category": "Business Analysis",
+    "required_workers": ["research", "finance"],
+    "required_tools": [],
+    "skill_class": "BusinessEvaluationSkill"
+}

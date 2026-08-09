@@ -1,0 +1,9 @@
+{
+    "name": "google_review_product",
+    "version": "1.0.0",
+    "description": "Full product evaluation pipeline: Research → Acquisition → Marketing → Finance.",
+    "category": "Product Evaluation",
+    "required_workers": ["research", "acquisition", "marketing", "finance"],
+    "required_tools": [],
+    "skill_class": "GoogleReviewProductSkill"
+}

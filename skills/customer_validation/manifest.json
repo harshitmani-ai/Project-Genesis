@@ -1,0 +1,9 @@
+{
+    "name": "customer_validation",
+    "version": "1.0.0",
+    "description": "Validate a product idea with target customers: Research → Acquisition.",
+    "category": "Customer Discovery",
+    "required_workers": ["research", "acquisition"],
+    "required_tools": [],
+    "skill_class": "CustomerValidationSkill"
+}

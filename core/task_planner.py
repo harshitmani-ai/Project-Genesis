@@ -58,6 +58,7 @@ VALID_INTENTS = {
     "marketing",
     "finance",
     "multi_worker",
+    "skill",           # Phase 11: route to a specific registered skill
     "general_question",
     "unknown",
 }
@@ -83,6 +84,7 @@ class PlanningReport:
         confidence_score  — Integer 0–100 expressing the planner's certainty.
         cleaned_input     — The request with any ambiguous preamble removed,
                            ready to be passed directly to a worker.
+        skill_selected    — If intent is 'skill', the name of the skill to run.
     """
 
     original_request: str
@@ -92,6 +94,7 @@ class PlanningReport:
     reasoning: str = ""
     confidence_score: int = 0
     cleaned_input: str = ""
+    skill_selected: str = ""   # Phase 11: name of skill if intent == "skill"
 
     def __post_init__(self) -> None:
         if not self.cleaned_input:
@@ -317,3 +320,159 @@ Required JSON format:
                     return text[start : i + 1]
 
         return text[start:].strip()
+
+    def _extract_json_array(self, text: str) -> str:
+        """
+        Extract the first JSON array from an LLM response.
+        Handles markdown code fences.
+        """
+        text = re.sub(r"```(?:json)?\s*", "", text)
+        text = re.sub(r"```\s*", "", text)
+
+        start = text.find("[")
+        if start == -1:
+            return "[]"
+
+        depth = 0
+        for i, char in enumerate(text[start:], start):
+            if char == "[":
+                depth += 1
+            elif char == "]":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+
+        return "[]"
+
+    # ── Phase 12: Task decomposition ──────────────────────────────────────────
+
+    def plan_tasks(
+        self,
+        goal: str,
+        available_workers: list[str] | None = None,
+        available_skills: list[str] | None = None,
+    ) -> list[dict]:
+        """
+        Decompose a large founder goal into an ordered list of task dicts.
+
+        Each dict contains:
+            title         — Short task name.
+            description   — Full goal text for this task.
+            assigned_to   — Worker key or skill name.
+            assigned_type — "worker" | "skill"
+            priority      — Integer 1–10.
+            dependencies  — List of title strings (converted to IDs by caller).
+
+        Args:
+            goal:              The founder's high-level objective.
+            available_workers: Worker keys to choose from (default: all 4).
+            available_skills:  Skill names to choose from.
+
+        Returns:
+            A list of task dicts ordered by suggested execution sequence.
+            Returns an empty list on failure.
+        """
+        if not goal or not goal.strip():
+            return []
+
+        workers = available_workers or ["research", "acquisition", "marketing", "finance"]
+        skills = available_skills or []
+
+        company_context = load_company_context()
+
+        assignees_desc = "\n".join(
+            [f"  - worker:{w}" for w in workers]
+            + [f"  - skill:{s}" for s in skills]
+        )
+
+        prompt = f"""
+You are the Task Planner for Project Genesis.
+
+Your job is to decompose the founder's goal into a small, ordered list of tasks
+(maximum 7 tasks).  Each task maps to one worker or skill.
+
+{company_context}
+
+Available assignees:
+{assignees_desc}
+
+Founder's goal:
+{goal}
+
+Rules:
+- Each task must have a unique, descriptive title.
+- Each task must be assigned to exactly one worker (prefix: worker:) or skill (prefix: skill:).
+- List tasks in execution order (earlier tasks first).
+- Specify dependencies as a list of task titles that must complete before this task starts.
+- Priority 1 = most urgent, 10 = least urgent.
+- Maximum 7 tasks.
+- Only include tasks that are genuinely useful for this goal.
+
+Respond with ONLY a valid JSON array. No explanation. No markdown. No extra text.
+
+Required JSON format:
+[
+  {{
+    "title": "Market Research",
+    "description": "Research the market opportunity for {goal}",
+    "assigned_to": "research",
+    "assigned_type": "worker",
+    "priority": 1,
+    "dependencies": []
+  }},
+  {{
+    "title": "Financial Analysis",
+    "description": "Model the financial viability of {goal}",
+    "assigned_to": "finance",
+    "assigned_type": "worker",
+    "priority": 2,
+    "dependencies": ["Market Research"]
+  }}
+]
+"""
+
+        try:
+            raw = ask_ai(prompt)
+            json_text = self._extract_json_array(raw)
+            tasks = json.loads(json_text)
+            if not isinstance(tasks, list):
+                return []
+            # Sanitise each task dict
+            sanitised = []
+            for item in tasks:
+                if not isinstance(item, dict):
+                    continue
+                assigned_to = str(item.get("assigned_to", "research"))
+                assigned_type = str(item.get("assigned_type", "worker"))
+                # Validate assigned_to against known workers/skills
+                if assigned_type == "worker" and assigned_to not in workers:
+                    assigned_to = workers[0] if workers else "research"
+                sanitised.append({
+                    "title": str(item.get("title", "Task")),
+                    "description": str(item.get("description", goal)),
+                    "assigned_to": assigned_to,
+                    "assigned_type": assigned_type,
+                    "priority": max(1, min(10, int(item.get("priority", 5)))),
+                    "dependencies": list(item.get("dependencies", [])),
+                })
+            return sanitised[:7]  # hard cap at 7 tasks
+        except Exception:
+            # Fallback: simple default pipeline tasks
+            return [
+                {
+                    "title": "Market Research",
+                    "description": f"Research the market for: {goal}",
+                    "assigned_to": "research",
+                    "assigned_type": "worker",
+                    "priority": 1,
+                    "dependencies": [],
+                },
+                {
+                    "title": "Financial Analysis",
+                    "description": f"Analyse financial viability for: {goal}",
+                    "assigned_to": "finance",
+                    "assigned_type": "worker",
+                    "priority": 2,
+                    "dependencies": ["Market Research"],
+                },
+            ]
