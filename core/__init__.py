@@ -11,6 +11,7 @@ build a compliant worker.  Workers in future phases will use:
 Phase 1: Core Infrastructure — No existing files are modified.
 Phase 7: Adds WorkerOrchestrator and FinalCompanyReport for multi-worker orchestration.
 Phase 8: Adds MemoryGovernor for governed memory writes.
+Phase 9: Adds TaskPlanner and PlanningReport for intelligent intent routing.
 """
 
 from core.base_worker import BaseWorker
@@ -18,6 +19,7 @@ from core.logger import LogLevel, WorkerLogger
 from core.memory_governor import MemoryGovernor
 from core.memory_interface import MemoryInterface
 from core.orchestrator import FinalCompanyReport, WorkerOrchestrator
+from core.task_planner import PlanningReport, TaskPlanner
 from core.worker_identity import WorkerIdentity
 from core.worker_report import ReportStatus, WorkerReport
 
@@ -30,6 +32,8 @@ __all__ = [
     "MemoryInterface",
     "WorkerIdentity",
     "WorkerOrchestrator",
+    "PlanningReport",
+    "TaskPlanner",
     "ReportStatus",
     "WorkerReport",
 ]

@@ -9,6 +9,7 @@ from workers.finance_worker import FinanceWorker
 from core.worker_report import ReportStatus
 from core.orchestrator import WorkerOrchestrator
 from core.memory_governor import MemoryGovernor
+from core.task_planner import TaskPlanner
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
@@ -40,6 +41,11 @@ DEFAULT_PIPELINE = ["research", "acquisition", "marketing", "finance"]
 # Phase 8: Sole authority for committing memory proposals to company_memory.md.
 
 GOVERNOR = MemoryGovernor()
+
+# ── Task Planner ────────────────────────────────────────────────────────────
+# Phase 9: Intelligent intent routing for natural language requests.
+
+PLANNER = TaskPlanner()
 
 
 def show_company_memory():
@@ -643,11 +649,85 @@ def handle_command(command):
         print("✓ Founder approval is still required")
         return
 
-    response = answer_company_question(command)
+    # ── Intelligent Task Planner ────────────────────────────────────────────
+    # Phase 9: All unmatched requests pass through the TaskPlanner.
+    # Existing keyword routes above take priority; the planner handles
+    # natural-language requests that don't match any keyword pattern.
+
+    plan = PLANNER.plan(command)
 
     print()
-    print("Genesis:")
-    print(response)
+    print(plan.summary())
+    print()
+
+    if not plan.is_actionable:
+        # Planner is not confident enough — answer as a general company question
+        response = answer_company_question(command)
+        print("Genesis:")
+        print(response)
+        return
+
+    if plan.is_multi_worker:
+        # Run the full orchestration pipeline with the planner-selected sequence
+        print(f"Genesis Orchestration Engine — starting planned pipeline…")
+        print(f"Goal: {plan.cleaned_input}")
+
+        final_report = ORCHESTRATOR.run(plan.cleaned_input, plan.execution_order)
+
+        print()
+        print("═" * 60)
+        print("FINAL COMPANY REPORT")
+        print("═" * 60)
+        print()
+        print(f"Workers executed: {', '.join(w.title() for w in final_report.workers_executed)}")
+        if final_report.failures:
+            print(f"Workers failed:   {', '.join(w.title() for w in final_report.failures)}")
+        print()
+        print("Combined Recommendation:")
+        print(final_report.combined_summary)
+        print()
+        print("Consolidated Risks:")
+        print(final_report.risks)
+        print()
+        print("Next Actions for Founder:")
+        print(final_report.next_actions)
+        print()
+        print("Genesis Status")
+        print(f"✓ Planner-orchestrated pipeline completed — {final_report.success_count} workers succeeded")
+        if final_report.failure_count:
+            print(f"⚠ {final_report.failure_count} worker(s) failed — check FinalCompanyReport")
+        print("✓ FinalCompanyReport saved to orchestration_reports/")
+        print("✓ Founder approval is still required")
+        return
+
+    # Single-worker plan
+    worker_key = plan.execution_order[0]
+    if worker_key not in WORKER_REGISTRY:
+        response = answer_company_question(command)
+        print("Genesis:")
+        print(response)
+        return
+
+    print(f"Genesis — routing to {worker_key.title()} Worker…")
+    report = WORKER_REGISTRY[worker_key].run_lifecycle(plan.cleaned_input)
+
+    if report.status == ReportStatus.FAILURE:
+        print()
+        print("Genesis Status")
+        print(f"✗ {worker_key.title()} Worker failed.")
+        print(f"Error: {report.error}")
+        return
+
+    result, report_path = report.result
+    print()
+    print(f"{worker_key.title()} Worker Result:")
+    print(result)
+    print()
+    print("Genesis Status")
+    print(f"✓ {worker_key.title()} AI completed the assignment")
+    print(f"✓ Report saved: {report_path}")
+    print("✓ Memory proposal submitted for Founder review")
+    print("✓ Founder approval is still required")
 
 
 def get_multiline_input():
