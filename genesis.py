@@ -3,7 +3,11 @@ from pathlib import Path
 from brain import ask_ai
 from memory import load_company_context
 from workers.research_worker import ResearchWorker
+from workers.acquisition_worker import AcquisitionWorker
+from workers.marketing_worker import MarketingWorker
+from workers.finance_worker import FinanceWorker
 from core.worker_report import ReportStatus
+from core.orchestrator import WorkerOrchestrator
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
@@ -11,12 +15,25 @@ REPORTS_FOLDER = Path("research_reports")
 
 # ── Worker Registry ──────────────────────────────────────────────────────────
 # Central lookup table for all migrated workers.
-# Phase 3 registers Research Worker only.
-# Phase 4 will add ProductEvaluatorWorker, MarketIntelligenceWorker, etc.
+# Phase 3 registers Research Worker.
+# Phase 4 registers Acquisition Worker.
+# Phase 5 registers Marketing Worker.
+# Phase 6 registers Finance Worker.
 
 WORKER_REGISTRY = {
     "research": ResearchWorker(),
+    "acquisition": AcquisitionWorker(),
+    "marketing": MarketingWorker(),
+    "finance": FinanceWorker(),
 }
+
+# ── Orchestration Engine ─────────────────────────────────────────────────────
+# Phase 7: Multi-worker orchestration.
+# Default pipeline runs all four workers in business-logic order.
+
+ORCHESTRATOR = WorkerOrchestrator(WORKER_REGISTRY)
+
+DEFAULT_PIPELINE = ["research", "acquisition", "marketing", "finance"]
 
 
 def show_company_memory():
@@ -124,6 +141,229 @@ def remove_research_instruction(command):
     return cleaned_command.strip(" :.-")
 
 
+def should_run_acquisition(command):
+    acquisition_words = [
+        "acquisition",
+        "find leads",
+        "lead database",
+        "outreach",
+        "customer acquisition",
+        "acquire customers",
+        "icp",
+    ]
+
+    command_lower = command.lower()
+
+    return any(
+        phrase in command_lower
+        for phrase in acquisition_words
+    )
+
+
+def remove_acquisition_instruction(command):
+    phrases = [
+        "customer acquisition for",
+        "acquisition strategy for",
+        "acquisition for",
+        "find leads for",
+        "lead database for",
+        "outreach for",
+        "acquire customers for",
+        "customer acquisition",
+        "acquisition",
+        "find leads",
+        "lead database",
+        "outreach",
+        "icp",
+    ]
+
+    cleaned_command = command
+
+    for phrase in phrases:
+        cleaned_command = cleaned_command.replace(
+            phrase,
+            "",
+        )
+
+        cleaned_command = cleaned_command.replace(
+            phrase.title(),
+            "",
+        )
+
+    return cleaned_command.strip(" :.-")
+
+
+def should_run_marketing(command):
+    marketing_words = [
+        "marketing",
+        "positioning",
+        "landing page",
+        "cold email",
+        "copywriting",
+        "campaign",
+        "headline",
+        "value proposition",
+    ]
+
+    command_lower = command.lower()
+
+    return any(
+        phrase in command_lower
+        for phrase in marketing_words
+    )
+
+
+def remove_marketing_instruction(command):
+    phrases = [
+        "marketing strategy for",
+        "marketing campaign for",
+        "marketing assets for",
+        "marketing for",
+        "landing page for",
+        "cold email for",
+        "positioning for",
+        "marketing",
+        "landing page",
+        "cold email",
+        "positioning",
+        "campaign",
+    ]
+
+    cleaned_command = command
+
+    for phrase in phrases:
+        cleaned_command = cleaned_command.replace(
+            phrase,
+            "",
+        )
+
+        cleaned_command = cleaned_command.replace(
+            phrase.title(),
+            "",
+        )
+
+    return cleaned_command.strip(" :.-")
+
+
+def should_run_finance(command):
+    finance_words = [
+        "finance",
+        "financial",
+        "revenue model",
+        "break-even",
+        "break even",
+        "profitability",
+        "roi",
+        "pricing strategy",
+        "unit economics",
+        "cash flow",
+        "startup cost",
+    ]
+
+    command_lower = command.lower()
+
+    return any(
+        phrase in command_lower
+        for phrase in finance_words
+    )
+
+
+def remove_finance_instruction(command):
+    phrases = [
+        "financial analysis for",
+        "finance analysis for",
+        "finance report for",
+        "finance for",
+        "financial viability of",
+        "analyse finances for",
+        "analyze finances for",
+        "financial viability",
+        "financial analysis",
+        "financial",
+        "finance",
+        "revenue model for",
+        "profitability of",
+    ]
+
+    cleaned_command = command
+
+    for phrase in phrases:
+        cleaned_command = cleaned_command.replace(
+            phrase,
+            "",
+        )
+
+        cleaned_command = cleaned_command.replace(
+            phrase.title(),
+            "",
+        )
+
+    return cleaned_command.strip(" :.-")
+
+
+def should_run_orchestration(command):
+    orchestration_words = [
+        "full analysis",
+        "complete analysis",
+        "full strategy",
+        "complete strategy",
+        "run all workers",
+        "run pipeline",
+        "orchestrate",
+        "full pipeline",
+        "end-to-end",
+        "end to end",
+        "all workers",
+        "full company report",
+    ]
+
+    command_lower = command.lower()
+
+    return any(
+        phrase in command_lower
+        for phrase in orchestration_words
+    )
+
+
+def remove_orchestration_instruction(command):
+    phrases = [
+        "run all workers for",
+        "full analysis for",
+        "complete analysis for",
+        "full strategy for",
+        "complete strategy for",
+        "orchestrate for",
+        "run pipeline for",
+        "end-to-end analysis for",
+        "end to end analysis for",
+        "run all workers",
+        "full analysis",
+        "complete analysis",
+        "full strategy",
+        "complete strategy",
+        "orchestrate",
+        "run pipeline",
+        "all workers",
+        "full company report",
+        "full pipeline",
+    ]
+
+    cleaned_command = command
+
+    for phrase in phrases:
+        cleaned_command = cleaned_command.replace(
+            phrase,
+            "",
+        )
+
+        cleaned_command = cleaned_command.replace(
+            phrase.title(),
+            "",
+        )
+
+    return cleaned_command.strip(" :.-")
+
+
 def answer_company_question(command):
     company_context = load_company_context()
 
@@ -193,6 +433,158 @@ def handle_command(command):
         print("✓ Research AI completed the assignment")
         print(f"✓ Report saved: {report_path}")
         print("✓ Company memory updated")
+        print("✓ Founder approval is still required")
+        return
+
+    if should_run_acquisition(command):
+        icp = remove_acquisition_instruction(command)
+
+        if not icp:
+            icp = input(
+                "What Ideal Customer Profile (ICP) should Acquisition AI target? "
+            ).strip()
+
+        if not icp:
+            print("Acquisition assignment cancelled.")
+            return
+
+        # ── Route through Worker Framework ───────────────────────────
+        report = WORKER_REGISTRY["acquisition"].run_lifecycle(icp)
+
+        if report.status == ReportStatus.FAILURE:
+            print()
+            print("Genesis Status")
+            print("✗ Acquisition Worker failed.")
+            print(f"Error: {report.error}")
+            return
+
+        result, report_path = report.result
+
+        print()
+        print("Acquisition Strategy Result:")
+        print(result)
+
+        print()
+        print("Genesis Status")
+        print("✓ Acquisition AI completed the assignment")
+        print(f"✓ Report saved: {report_path}")
+        print("✓ Company memory updated")
+        print("✓ Founder approval is still required")
+        return
+
+    if should_run_marketing(command):
+        product_info = remove_marketing_instruction(command)
+
+        if not product_info:
+            product_info = input(
+                "What product or target customer should Marketing AI focus on? "
+            ).strip()
+
+        if not product_info:
+            print("Marketing assignment cancelled.")
+            return
+
+        # ── Route through Worker Framework ───────────────────────────
+        report = WORKER_REGISTRY["marketing"].run_lifecycle(product_info)
+
+        if report.status == ReportStatus.FAILURE:
+            print()
+            print("Genesis Status")
+            print("✗ Marketing Worker failed.")
+            print(f"Error: {report.error}")
+            return
+
+        result, report_path = report.result
+
+        print()
+        print("Marketing Strategy Result:")
+        print(result)
+
+        print()
+        print("Genesis Status")
+        print("✓ Marketing AI completed the assignment")
+        print(f"✓ Report saved: {report_path}")
+        print("✓ Company memory updated")
+        print("✓ Founder approval is still required")
+        return
+
+    if should_run_finance(command):
+        product_info = remove_finance_instruction(command)
+
+        if not product_info:
+            product_info = input(
+                "What product or business model should Finance AI evaluate? "
+            ).strip()
+
+        if not product_info:
+            print("Finance assignment cancelled.")
+            return
+
+        # ── Route through Worker Framework ───────────────────────────
+        report = WORKER_REGISTRY["finance"].run_lifecycle(product_info)
+
+        if report.status == ReportStatus.FAILURE:
+            print()
+            print("Genesis Status")
+            print("✗ Finance Worker failed.")
+            print(f"Error: {report.error}")
+            return
+
+        result, report_path = report.result
+
+        print()
+        print("Finance Analysis Result:")
+        print(result)
+
+        print()
+        print("Genesis Status")
+        print("✓ Finance AI completed the assignment")
+        print(f"✓ Report saved: {report_path}")
+        print("✓ Company memory updated")
+        print("✓ Founder approval is still required")
+        return
+
+    if should_run_orchestration(command):
+        goal = remove_orchestration_instruction(command)
+
+        if not goal:
+            goal = input(
+                "What is the business objective for the full Genesis pipeline? "
+            ).strip()
+
+        if not goal:
+            print("Orchestration cancelled.")
+            return
+
+        print()
+        print("Genesis Orchestration Engine — starting full pipeline…")
+        print(f"Goal: {goal}")
+
+        final_report = ORCHESTRATOR.run(goal, DEFAULT_PIPELINE)
+
+        print()
+        print("═" * 60)
+        print("FINAL COMPANY REPORT")
+        print("═" * 60)
+        print()
+        print(f"Workers executed: {', '.join(w.title() for w in final_report.workers_executed)}")
+        if final_report.failures:
+            print(f"Workers failed: {', '.join(w.title() for w in final_report.failures)}")
+        print()
+        print("Combined Recommendation:")
+        print(final_report.combined_summary)
+        print()
+        print("Consolidated Risks:")
+        print(final_report.risks)
+        print()
+        print("Next Actions for Founder:")
+        print(final_report.next_actions)
+        print()
+        print("Genesis Status")
+        print(f"✓ Orchestration pipeline completed — {final_report.success_count} workers succeeded")
+        if final_report.failure_count:
+            print(f"⚠ {final_report.failure_count} worker(s) failed — check FinalCompanyReport")
+        print("✓ FinalCompanyReport saved to orchestration_reports/")
         print("✓ Founder approval is still required")
         return
 

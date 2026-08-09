@@ -14,5 +14,8 @@ Future phases will add:
 """
 
 from workers.research_worker import ResearchWorker
+from workers.acquisition_worker import AcquisitionWorker
+from workers.marketing_worker import MarketingWorker
+from workers.finance_worker import FinanceWorker
 
-__all__ = ["ResearchWorker"]
+__all__ = ["ResearchWorker", "AcquisitionWorker", "MarketingWorker", "FinanceWorker"]

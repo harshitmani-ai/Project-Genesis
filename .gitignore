@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+backups/
+
+acquisition_reports/
+marketing_reports/
+finance_reports/
+orchestration_reports/
+
+company_memory/proposals/
