@@ -235,8 +235,10 @@ class AutoPilotEngine:
         )
 
         self._last_result = result
-        if self._status not in (AutoPilotStatus.RUNNING,):
-            # Reset to IDLE if completed/failed/stopped for next call
+        try:
+            from genesis import sync_git_artifacts
+            sync_git_artifacts()
+        except Exception:
             pass
 
         return result

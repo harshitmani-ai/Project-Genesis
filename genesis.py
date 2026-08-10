@@ -438,11 +438,44 @@ def extract_build_goal(command):
     return text
 
 
+def sync_git_artifacts() -> None:
+    """Automatically stage generated report files, proposals, and queue persistence in Git so status stays clean."""
+    import glob
+    import subprocess
+    patterns = [
+        "research_reports/*.md",
+        "acquisition_reports/*.md",
+        "marketing_reports/*.md",
+        "finance_reports/*.md",
+        "orchestration_reports/*.md",
+        "company_memory/proposals/*.md",
+        "company_memory/audit_log.md",
+        "company_memory.md",
+        "company_memory/task_queue.json",
+    ]
+    files_to_add = []
+    for pat in patterns:
+        files_to_add.extend(glob.glob(pat))
+    if files_to_add:
+        try:
+            subprocess.run(["git", "add"] + files_to_add, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+
 def build_task_plan(goal):
     """
     Ask the TaskPlanner to decompose goal, create Tasks, and load the queue.
+    If the queue already has active tasks, reuse them to prevent duplicate task planning.
     Returns (task_count, task_titles_list).
     """
+    # Deduplication check: reuse active tasks if queue is not empty
+    if not TASK_QUEUE.is_empty():
+        all_tasks = TASK_QUEUE.get_all()
+        active = [t for t in all_tasks if t.status in (TaskStatus.READY, TaskStatus.PENDING, TaskStatus.RUNNING)]
+        if active:
+            return len(all_tasks), [t.title for t in all_tasks]
+
     task_dicts = PLANNER.plan_tasks(
         goal,
         available_workers=list(WORKER_REGISTRY.keys()),
@@ -477,6 +510,7 @@ def build_task_plan(goal):
     for task in title_to_task.values():
         TASK_QUEUE.add(task)
     TASK_QUEUE.refresh_readiness()
+    sync_git_artifacts()
 
     return len(title_to_task), list(title_to_task.keys())
 
@@ -567,6 +601,7 @@ def execute_next_task():
     )
 
     TASK_QUEUE.record_result(task.id, task_result)
+    sync_git_artifacts()
 
     return task_result
 

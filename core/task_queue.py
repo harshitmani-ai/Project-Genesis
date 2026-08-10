@@ -48,10 +48,12 @@ Phase 12: Autonomous Task Queue — No existing core files are modified.
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -171,6 +173,68 @@ class Task:
             f"{self.title} → {self.assigned_to}{dep_str}"
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "assigned_to": self.assigned_to,
+            "assigned_type": self.assigned_type,
+            "priority": self.priority,
+            "dependencies": self.dependencies,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at),
+            "started_at": self.started_at.isoformat() if isinstance(self.started_at, datetime) else None,
+            "completed_at": self.completed_at.isoformat() if isinstance(self.completed_at, datetime) else None,
+            "result": {
+                "task_id": self.result.task_id,
+                "task_title": self.result.task_title,
+                "success": self.result.success,
+                "output": str(self.result.output) if self.result.output else None,
+                "error": self.result.error,
+                "execution_time_ms": self.result.execution_time_ms,
+            } if self.result else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Task:
+        t = cls(
+            id=data["id"],
+            title=data["title"],
+            description=data["description"],
+            assigned_to=data["assigned_to"],
+            assigned_type=data.get("assigned_type", "worker"),
+            priority=data.get("priority", 5),
+            dependencies=data.get("dependencies", []),
+            status=TaskStatus(data.get("status", "pending")),
+        )
+        if data.get("created_at"):
+            try:
+                t.created_at = datetime.fromisoformat(data["created_at"])
+            except Exception:
+                pass
+        if data.get("started_at"):
+            try:
+                t.started_at = datetime.fromisoformat(data["started_at"])
+            except Exception:
+                pass
+        if data.get("completed_at"):
+            try:
+                t.completed_at = datetime.fromisoformat(data["completed_at"])
+            except Exception:
+                pass
+        res_data = data.get("result")
+        if res_data:
+            t.result = TaskResult(
+                task_id=res_data["task_id"],
+                task_title=res_data.get("task_title", t.title),
+                success=res_data["success"],
+                output=res_data.get("output"),
+                error=res_data.get("error"),
+                execution_time_ms=res_data.get("execution_time_ms", 0.0),
+            )
+        return t
+
 
 # ── TaskQueue ──────────────────────────────────────────────────────────────────
 
@@ -189,9 +253,11 @@ class TaskQueue:
         next_task = queue.get_next()     # returns t1 (no deps, priority 5)
     """
 
-    def __init__(self) -> None:
+    def __init__(self, persistence_file: Path | str = "company_memory/task_queue.json") -> None:
         # Ordered insertion dict: task.id → Task
         self._tasks: dict[str, Task] = {}
+        self.persistence_file = Path(persistence_file)
+        self.load_from_disk()
 
     # ── Mutation ───────────────────────────────────────────────────────────────
 
@@ -211,12 +277,14 @@ class TaskQueue:
 
         self._tasks[task.id] = task
         self._refresh_task_readiness(task)
+        self.save_to_disk()
         return task.id
 
     def remove(self, task_id: str) -> bool:
         """Remove a task by ID.  Returns True if removed, False if not found."""
         if task_id in self._tasks:
             del self._tasks[task_id]
+            self.save_to_disk()
             return True
         return False
 
@@ -227,6 +295,7 @@ class TaskQueue:
             return False
         task.status = TaskStatus.CANCELLED
         task.completed_at = datetime.now()
+        self.save_to_disk()
         return True
 
     def update_status(self, task_id: str, status: TaskStatus) -> None:
@@ -244,6 +313,7 @@ class TaskQueue:
         # If a task completed, downstream tasks may now be READY
         if status == TaskStatus.COMPLETED:
             self.refresh_readiness()
+        self.save_to_disk()
 
     def record_result(self, task_id: str, result: TaskResult) -> None:
         """Store the execution result on a task and mark it COMPLETED or FAILED."""
@@ -384,3 +454,32 @@ class TaskQueue:
             lines.append("")
 
         return "\n".join(lines).rstrip()
+
+    # ── Persistence ────────────────────────────────────────────────────────────
+
+    def save_to_disk(self) -> None:
+        """Persist current task queue state to JSON file."""
+        try:
+            self.persistence_file.parent.mkdir(parents=True, exist_ok=True)
+            data = [task.to_dict() for task in self._tasks.values()]
+            self.persistence_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def load_from_disk(self) -> int:
+        """Load task queue state from JSON file. Returns count of tasks loaded."""
+        if not hasattr(self, "persistence_file") or not self.persistence_file.exists():
+            return 0
+        try:
+            content = self.persistence_file.read_text(encoding="utf-8").strip()
+            if not content:
+                return 0
+            data = json.loads(content)
+            self._tasks.clear()
+            for task_data in data:
+                task = Task.from_dict(task_data)
+                self._tasks[task.id] = task
+            self.refresh_readiness()
+            return len(self._tasks)
+        except Exception:
+            return 0
