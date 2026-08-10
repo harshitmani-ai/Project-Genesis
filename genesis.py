@@ -13,6 +13,9 @@ from core.task_planner import TaskPlanner
 from core.tool_manager import DEFAULT_TOOL_MANAGER
 from core.skill_manager import SkillManager
 from core.task_queue import Task, TaskQueue, TaskResult, TaskStatus
+from core.company_dashboard import CompanyDashboard
+from core.autopilot import AutoPilotEngine
+from core.connector_manager import DEFAULT_CONNECTOR_MANAGER, ConnectorManager
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
@@ -66,6 +69,33 @@ _discovered = SKILL_MANAGER.discover()
 
 TASK_QUEUE = TaskQueue()
 
+# ── Company Dashboard ───────────────────────────────────────────────
+# Phase 13: Company Operating System dashboard.
+
+DASHBOARD = CompanyDashboard(
+    worker_registry=WORKER_REGISTRY,
+    skill_manager=SKILL_MANAGER,
+    tool_manager=TOOL_MANAGER,
+    task_queue=TASK_QUEUE,
+    memory_governor=GOVERNOR,
+)
+
+# ── Auto-Pilot Engine ───────────────────────────────────────────────
+# Phase 14: Autonomous execution loop for task queue automation.
+
+AUTOPILOT = AutoPilotEngine(
+    task_queue=TASK_QUEUE,
+    executor_fn=lambda: execute_next_task(),
+    dashboard=DASHBOARD,
+)
+
+# ── Connector Framework ─────────────────────────────────────────────
+# Phase V2: Decoupled connector framework for Antigravity, ChatGPT, etc.
+
+CONNECTOR_MANAGER = DEFAULT_CONNECTOR_MANAGER
+_connectors_loaded = CONNECTOR_MANAGER.discover()
+
+
 
 def show_company_memory():
     if not COMPANY_MEMORY_FILE.exists():
@@ -98,7 +128,107 @@ def show_proposals():
     return GOVERNOR.proposals_summary()
 
 
-def should_show_proposals(command):
+def is_proposal_command(command: str) -> bool:
+    """Return True if command is any local proposal management command."""
+    cmd = command.lower().strip()
+    return "proposal" in cmd or "proposals" in cmd
+
+
+def extract_proposal_identifier(command: str) -> str:
+    """Extract proposal index or filename from command string."""
+    cmd = command.strip()
+    parts = cmd.split("proposal", 1)
+    if len(parts) > 1:
+        specifier = parts[1].strip()
+        tokens = specifier.split()
+        if tokens:
+            return tokens[0]
+    return ""
+
+
+def should_review_single_proposal(command: str) -> bool:
+    """Return True if command asks to review/show/view a specific proposal (e.g. 'review proposal 1')."""
+    cmd = command.lower().strip()
+    triggers = ["review proposal", "show proposal", "view proposal", "read proposal"]
+    if any(t in cmd for t in triggers):
+        id_str = extract_proposal_identifier(cmd)
+        if id_str and id_str != "s" and id_str != "all":
+            return True
+    return False
+
+
+def should_approve_single_proposal(command: str) -> bool:
+    """Return True if command asks to approve a single proposal (e.g. 'approve proposal 1')."""
+    cmd = command.lower().strip()
+    if "approve proposal" in cmd or "merge proposal" in cmd:
+        id_str = extract_proposal_identifier(cmd)
+        if id_str and id_str != "s" and id_str != "all":
+            return True
+    return False
+
+
+def should_reject_single_proposal(command: str) -> bool:
+    """Return True if command asks to reject a single proposal (e.g. 'reject proposal 2')."""
+    cmd = command.lower().strip()
+    if "reject proposal" in cmd or "deny proposal" in cmd:
+        id_str = extract_proposal_identifier(cmd)
+        if id_str and id_str != "s" and id_str != "all":
+            return True
+    return False
+
+
+def should_review_all_proposals(command: str) -> bool:
+    """Return True if command requests the full Proposal Review Dashboard ('review all proposals')."""
+    cmd = command.lower().strip()
+    triggers = [
+        "review all proposals",
+        "proposal dashboard",
+        "proposals dashboard",
+        "review proposals dashboard",
+        "show proposal dashboard",
+        "view proposal dashboard",
+    ]
+    return any(t in cmd for t in triggers)
+
+
+def should_approve_selected_proposals(command: str) -> bool:
+    """Return True if command requests batch approval of selected proposals ('approve selected 1,2,4,5')."""
+    cmd = command.lower().strip()
+    return "approve selected" in cmd or "approve select" in cmd or "merge selected" in cmd
+
+
+def should_reject_selected_proposals(command: str) -> bool:
+    """Return True if command requests batch rejection of selected proposals ('reject selected 3,6,8')."""
+    cmd = command.lower().strip()
+    return "reject selected" in cmd or "reject select" in cmd or "deny selected" in cmd
+
+
+def extract_selected_indices(command: str) -> list[int]:
+    """
+    Extract a list of 1-based integer proposal indices from a command string.
+    Supports 'approve selected 1,2,4,5', 'approve selected 1 2 4 5', 'reject selected 3, 6, 8'.
+    """
+    import re
+    raw_nums = re.findall(r"\d+", command)
+    indices = []
+    for num_str in raw_nums:
+        try:
+            val = int(num_str)
+            if val > 0 and val not in indices:
+                indices.append(val)
+        except ValueError:
+            pass
+    return indices
+
+
+def should_reject_all_proposals(command: str) -> bool:
+    """Return True if command asks to reject all proposals."""
+    cmd = command.lower().strip()
+    triggers = ["reject all proposals", "reject proposals all", "deny all proposals"]
+    return any(t in cmd for t in triggers)
+
+
+def should_show_proposals(command: str) -> bool:
     proposal_commands = [
         "show proposals",
         "list proposals",
@@ -106,12 +236,13 @@ def should_show_proposals(command):
         "memory proposals",
         "show memory proposals",
         "review proposals",
+        "proposals",
     ]
-    command_lower = command.lower()
-    return any(phrase in command_lower for phrase in proposal_commands)
+    command_lower = command.lower().strip()
+    return any(phrase == command_lower or phrase in command_lower for phrase in proposal_commands)
 
 
-def should_approve_proposals(command):
+def should_approve_proposals(command: str) -> bool:
     approve_commands = [
         "approve proposals",
         "approve memory proposals",
@@ -119,8 +250,11 @@ def should_approve_proposals(command):
         "commit proposals",
         "approve all proposals",
     ]
-    command_lower = command.lower()
+    command_lower = command.lower().strip()
     return any(phrase in command_lower for phrase in approve_commands)
+
+
+
 
 
 def show_tools():
@@ -342,6 +476,15 @@ def execute_next_task():
             success = skill_result.success
             output = skill_result
             error = skill_result.error
+        elif task.assigned_type == "connector":
+            conn_result = CONNECTOR_MANAGER.send_task(
+                connector_name=task.assigned_to,
+                action="execute",
+                payload={"goal": full_goal},
+            )
+            success = conn_result.success
+            output = conn_result
+            error = conn_result.error
         else:
             # Worker execution
             if task.assigned_to not in WORKER_REGISTRY:
@@ -370,6 +513,103 @@ def execute_next_task():
     TASK_QUEUE.record_result(task.id, task_result)
 
     return task_result
+
+
+# ── Phase 13: Company Dashboard helpers ──────────────────────────────────────
+
+def should_show_dashboard(command):
+    """Return True for any morning / dashboard / status greeting commands."""
+    cmd = command.lower().strip()
+    if is_proposal_command(cmd):
+        return False
+    dashboard_triggers = [
+        "good morning genesis",
+        "good morning",
+        "morning genesis",
+        "company status",
+        "show dashboard",
+        "dashboard",
+        "today",
+        "show status",
+        "company overview",
+        "what's our status",
+        "how are we doing",
+    ]
+    cmd = command.lower().strip()
+    return any(trigger in cmd for trigger in dashboard_triggers)
+
+
+def should_show_weekly_summary(command):
+    weekly_triggers = [
+        "weekly summary",
+        "weekly report",
+        "week summary",
+        "this week",
+        "show weekly",
+    ]
+    cmd = command.lower().strip()
+    return any(trigger in cmd for trigger in weekly_triggers)
+
+
+# ── Phase 14: Auto-Pilot helpers ─────────────────────────────────────────────
+
+def should_run_autopilot(command):
+    triggers = [
+        "autopilot",
+        "run autopilot",
+        "start autopilot",
+        "auto run",
+        "auto pilot",
+    ]
+    cmd = command.lower().strip()
+    return any(trigger == cmd or trigger in cmd for trigger in triggers) and not should_show_autopilot(command)
+
+
+def should_show_autopilot(command):
+    triggers = [
+        "autopilot status",
+        "show autopilot",
+        "status autopilot",
+    ]
+    cmd = command.lower().strip()
+    return any(trigger in cmd for trigger in triggers)
+
+
+def should_show_connectors(command):
+    triggers = [
+        "show connectors",
+        "list connectors",
+        "connector status",
+        "connectors",
+    ]
+    cmd = command.lower().strip()
+    return any(trigger in cmd for trigger in triggers)
+
+
+def show_connectors():
+    return CONNECTOR_MANAGER.connectors_summary()
+
+
+
+def run_autopilot_mode(max_steps=50):
+    """Run the Auto-Pilot loop and output results to the founder."""
+    print()
+    print("═" * 60)
+    print("  GENESIS AUTO-PILOT ENGINE  —  AUTONOMOUS EXECUTION MODE")
+    print("═" * 60)
+    print()
+
+    result = AUTOPILOT.run(max_steps=max_steps, stop_on_failure=True, verbose=True)
+
+    print()
+    print("═" * 60)
+    print(f"AUTO-PILOT SUMMARY: {result.status.value.upper()}")
+    print(f"Executed: {result.tasks_completed}/{result.steps_executed} tasks succeeded ({result.total_time_ms:.0f}ms)")
+    print(f"Message:  {result.message}")
+    print("═" * 60)
+    print()
+
+    return result
 
 
 def should_run_research(command):
@@ -700,6 +940,29 @@ Rules:
 
 
 def handle_command(command):
+    # ── Dashboard (Phase 13) ────────────────────────────────────────────────
+    # Check weekly summary FIRST (it's a sub-case of "today"/"this week")
+    if should_show_weekly_summary(command):
+        print()
+        print(DASHBOARD.weekly_summary(with_ai=True))
+        return
+
+    # ── Auto-Pilot (Phase 14) ───────────────────────────────────────────────
+    if should_show_autopilot(command):
+        print()
+        print(AUTOPILOT.summary())
+        return
+
+    if should_run_autopilot(command):
+        run_autopilot_mode()
+        return
+
+    if should_show_dashboard(command):
+        print()
+        print(DASHBOARD.daily_brief(with_ai=True))
+        return
+
+
     if should_show_memory(command):
         print()
         print(show_company_memory())
@@ -715,6 +978,13 @@ def handle_command(command):
         print()
         print(show_tools())
         return
+
+    # ── Connector Framework (V2 Upgrade) ───────────────────────────────────
+    if should_show_connectors(command):
+        print()
+        print(show_connectors())
+        return
+
 
     # ── Task Queue ─────────────────────────────────────────────────────────
     if should_show_tasks(command):
@@ -831,7 +1101,63 @@ def handle_command(command):
         print("✓ Founder approval is still required")
         return
 
-    # ── Memory Governance ──────────────────────────────────────────────────
+    # ── Memory Governance (Local ProposalManager — Zero LLM Calls) ─────────
+    if should_review_all_proposals(command):
+        print()
+        print(GOVERNOR.build_proposal_dashboard())
+        return
+
+    if should_approve_selected_proposals(command):
+        indices = extract_selected_indices(command)
+        print()
+        print(f"ProposalManager — approving selected proposals {indices}...")
+        results = GOVERNOR.approve_selected(indices)
+        for res in results:
+            print(f"  {res}")
+        return
+
+    if should_reject_selected_proposals(command):
+        indices = extract_selected_indices(command)
+        print()
+        print(f"ProposalManager — rejecting selected proposals {indices}...")
+        results = GOVERNOR.reject_selected(indices)
+        for res in results:
+            print(f"  {res}")
+        return
+
+    if should_review_single_proposal(command):
+        proposal_id = extract_proposal_identifier(command)
+        print()
+        print(GOVERNOR.review_proposal(proposal_id))
+        return
+
+
+
+
+    if should_approve_single_proposal(command):
+        proposal_id = extract_proposal_identifier(command)
+        print()
+        print("ProposalManager — approving proposal...")
+        res = GOVERNOR.approve_single(proposal_id)
+        print(f"  {res}")
+        return
+
+    if should_reject_single_proposal(command):
+        proposal_id = extract_proposal_identifier(command)
+        print()
+        print("ProposalManager — rejecting proposal...")
+        res = GOVERNOR.reject_single(proposal_id)
+        print(f"  {res}")
+        return
+
+    if should_reject_all_proposals(command):
+        print()
+        print("ProposalManager — rejecting all pending proposals...")
+        results = GOVERNOR.reject_all()
+        for result in results:
+            print(f"  {result}")
+        return
+
     if should_show_proposals(command):
         print()
         print(show_proposals())
@@ -839,7 +1165,7 @@ def handle_command(command):
 
     if should_approve_proposals(command):
         print()
-        print("Memory Governor — merging all approved proposals…")
+        print("ProposalManager — merging all approved proposals…")
         results = GOVERNOR.merge_all()
         for result in results:
             print(f"  {result}")
@@ -849,6 +1175,13 @@ def handle_command(command):
         print("✓ Merged proposals are now part of company_memory.md.")
         print("✓ Audit log updated in company_memory/audit_log.md.")
         return
+
+    if is_proposal_command(command):
+        # Fallback for any other proposal command: handle locally with 0 LLM calls
+        print()
+        print(show_proposals())
+        return
+
 
     if should_run_research(command):
         target = remove_research_instruction(command)
@@ -1045,6 +1378,8 @@ def handle_command(command):
 
     plan = PLANNER.plan(command)
 
+
+
     print()
     print(plan.summary())
     print()
@@ -1119,8 +1454,32 @@ def handle_command(command):
     print("✓ Founder approval is still required")
 
 
+def is_system_command(command: str) -> bool:
+    """Return True if command is a single-line system, governance, status, or task command."""
+    cmd = command.lower().strip()
+    return (
+        is_proposal_command(cmd)
+        or should_review_all_proposals(cmd)
+        or should_approve_selected_proposals(cmd)
+        or should_reject_selected_proposals(cmd)
+        or should_show_dashboard(cmd)
+        or should_show_weekly_summary(cmd)
+        or should_show_autopilot(cmd)
+        or should_run_autopilot(cmd)
+        or should_show_memory(cmd)
+        or should_show_reports(cmd)
+        or should_show_tools(cmd)
+        or should_show_connectors(cmd)
+        or should_show_tasks(cmd)
+        or should_run_next_task(cmd)
+        or should_retry_failed(cmd)
+        or should_clear_completed(cmd)
+        or should_show_skills(cmd)
+    )
+
+
+
 def get_multiline_input():
-    lines = []
     first_line = input("Harshit: ").strip()
 
     if not first_line:
@@ -1137,8 +1496,15 @@ def get_multiline_input():
     if first_line == "END":
         return ""
 
-    lines.append(first_line)
+    # Execute system/governance commands immediately on Enter
+    if is_system_command(first_line):
+        return first_line
 
+    # Standard single-line commands execute immediately on Enter unless multiline block indicated
+    if not first_line.endswith("\\") and not first_line.startswith('"""') and not first_line.startswith("'''"):
+        return first_line
+
+    lines = [first_line]
     while True:
         line = input("... ")
         if line.strip() == "END":
@@ -1154,7 +1520,7 @@ def main():
     print("Welcome back, Harshit.")
     print()
     print("Speak naturally to your company.")
-    print("Type 'END' on a new line to send your message.")
+    print("Type 'END' on a new line to send multiline messages.")
     print("Type 'exit' when you want to stop.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
@@ -1179,6 +1545,10 @@ def main():
             handle_command(command)
 
         except Exception as error:
+            print()
+            print("Genesis could not complete the request.")
+            print("Error:", error)
+
             print()
             print("Genesis could not complete the request.")
             print("Error:", error)

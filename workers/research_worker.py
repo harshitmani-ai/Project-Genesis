@@ -51,8 +51,8 @@ def _research_product_ideas(target_audience: str) -> str:
     """
     Call the LLM with the Research AI prompt.
 
-    Prompt text is character-for-character identical to the original
-    research_worker.py to guarantee zero output regression.
+    Prompt text instructs LLM to produce exactly 3 preliminary product hypotheses
+    with explicit section headers (Product Name, Customer Problem, Main Risk, etc.).
     """
     company_context = load_company_context()
 
@@ -69,14 +69,14 @@ Generate exactly 3 preliminary product hypotheses.
 
 For every product include:
 
-1. Product name
-2. Customer problem
-3. Proposed AI solution
-4. Why customers may pay
-5. Difficulty score out of 10
-6. Profit potential score out of 10
-7. Main risk
-8. Validation required
+1. Product Name
+2. Customer Problem
+3. Proposed AI Solution
+4. Why Customers May Pay
+5. Difficulty Score out of 10
+6. Profit Potential Score out of 10
+7. Main Risk
+8. Validation Required
 
 Important rules:
 
@@ -239,7 +239,7 @@ class ResearchWorker(BaseWorker):
         Confirm the LLM output contains the three required sections.
 
         Per the migration plan: checks for 'Product name', 'Customer problem',
-        and 'Main risk' to ensure the model followed the prompt structure.
+        and 'Main risk' (case-insensitive) to ensure the model followed the prompt structure.
 
         Args:
             result: (result_text, report_path) tuple from execute().
@@ -248,10 +248,15 @@ class ResearchWorker(BaseWorker):
             True if all three sections are present; False otherwise.
         """
         result_text, _ = result
+        if not result_text or not result_text.strip():
+            self.logger.warning("Verification failed — research output is empty.")
+            return False
+
+        result_text_lower = result_text.lower()
         required_sections = ["Product name", "Customer problem", "Main risk"]
 
         for section in required_sections:
-            if section not in result_text:
+            if section.lower() not in result_text_lower:
                 self.logger.warning(
                     f"Verification failed — missing section: '{section}'"
                 )
@@ -259,6 +264,7 @@ class ResearchWorker(BaseWorker):
 
         self.logger.info("Verification passed — all required sections present.")
         return True
+
 
     def learn(self, task: Any, result: tuple[str, Path]) -> None:
         """

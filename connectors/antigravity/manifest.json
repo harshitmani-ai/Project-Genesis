@@ -1,0 +1,7 @@
+{
+  "name": "antigravity",
+  "version": "1.0.0",
+  "description": "Google Antigravity IDE and SDK Connector for autonomous code execution and workspace actions.",
+  "category": "IDE & SDK",
+  "connector_class": "AntigravityConnector"
+}

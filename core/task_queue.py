@@ -140,7 +140,7 @@ class Task:
         # Clamp priority
         self.priority = max(1, min(10, self.priority))
         # Validate assigned_type
-        if self.assigned_type not in ("worker", "skill"):
+        if self.assigned_type not in ("worker", "skill", "connector"):
             self.assigned_type = "worker"
 
     @property

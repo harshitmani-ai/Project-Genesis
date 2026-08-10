@@ -1,0 +1,7 @@
+{
+  "name": "chatgpt",
+  "version": "1.0.0",
+  "description": "ChatGPT / OpenAI API Connector for external reasoning, web synthesis, and prompt evaluation.",
+  "category": "LLM & Reasoning",
+  "connector_class": "ChatGPTConnector"
+}
