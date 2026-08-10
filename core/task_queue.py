@@ -253,11 +253,12 @@ class TaskQueue:
         next_task = queue.get_next()     # returns t1 (no deps, priority 5)
     """
 
-    def __init__(self, persistence_file: Path | str = "company_memory/task_queue.json") -> None:
+    def __init__(self, persistence_file: Path | str | None = None) -> None:
         # Ordered insertion dict: task.id → Task
         self._tasks: dict[str, Task] = {}
-        self.persistence_file = Path(persistence_file)
-        self.load_from_disk()
+        self.persistence_file = Path(persistence_file) if persistence_file else None
+        if self.persistence_file:
+            self.load_from_disk()
 
     # ── Mutation ───────────────────────────────────────────────────────────────
 

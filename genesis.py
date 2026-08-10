@@ -69,7 +69,7 @@ _discovered = SKILL_MANAGER.discover()
 # ── Task Queue ───────────────────────────────────────────────────────────
 # Phase 12: Autonomous task queue for breaking large goals into tracked steps.
 
-TASK_QUEUE = TaskQueue()
+TASK_QUEUE = TaskQueue("company_memory/task_queue.json")
 
 # ── Company Dashboard ───────────────────────────────────────────────
 # Phase 13: Company Operating System dashboard.

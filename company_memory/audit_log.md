@@ -59,3 +59,8 @@
 | APPROVED | proposal_20260810_004511_finance___evaluate_technical_feasibility.md | 2026-08-10 13:45:24 |  |
 | APPROVED | proposal_20260810_004541_marketing___create_marketing_assets__val.md | 2026-08-10 13:45:24 |  |
 | REJECTED | proposal_20260810_125755_acquisition___find_dental_practices.md | 2026-08-10 13:45:24 | Rejected in Batch |
+| REJECTED | proposal_20260810_134607_acquisition___founder_directive___strate.md | 2026-08-10 13:46:31 | Batch Reject Test |
+| APPROVED | proposal_20260810_004531_acquisition___identify_methods_and_chann.md | 2026-08-10 13:46:31 |  |
+| APPROVED | proposal_20260810_125023_acquisition___find_dental_practices.md | 2026-08-10 13:46:32 |  |
+| APPROVED | proposal_20260810_130837_finance___launch_dentalreview_ai_version.md | 2026-08-10 13:46:32 |  |
+| REJECTED | proposal_20260810_130943_acquisition___launch_dentalreview_ai_ver.md | 2026-08-10 13:46:32 | Rejected in Batch |
