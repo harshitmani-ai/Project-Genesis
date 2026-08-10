@@ -1,148 +1,46 @@
 [
   {
-    "id": "72b797d3",
+    "id": "f38202c1",
     "title": "Market Research",
-    "description": "Research the market opportunity and customer segments for Test Goal for Deduplication Check",
+    "description": "Research the market opportunity and feasibility for Test Goal for Deduplication Check",
     "assigned_to": "research",
     "assigned_type": "worker",
     "priority": 1,
     "dependencies": [],
-    "status": "completed",
-    "created_at": "2026-08-10T13:44:33.577814",
+    "status": "ready",
+    "created_at": "2026-08-10T13:53:42.193688",
     "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.361484",
-    "result": {
-      "task_id": "72b797d3",
-      "task_title": "Market Research",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
+    "completed_at": null,
+    "result": null
   },
   {
-    "id": "88cbc35c",
+    "id": "d7e067b3",
     "title": "Customer Validation",
-    "description": "Validate customer pain points and willingness to pay for Test Goal for Deduplication Check",
-    "assigned_to": "skill:customer_validation",
+    "description": "Validate customer demand and pain points for Test Goal for Deduplication Check",
+    "assigned_to": "customer_validation",
     "assigned_type": "skill",
     "priority": 2,
     "dependencies": [
-      "72b797d3"
+      "f38202c1"
     ],
-    "status": "completed",
-    "created_at": "2026-08-10T13:44:33.577814",
+    "status": "pending",
+    "created_at": "2026-08-10T13:53:42.193688",
     "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.363546",
-    "result": {
-      "task_id": "88cbc35c",
-      "task_title": "Customer Validation",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
+    "completed_at": null,
+    "result": null
   },
   {
-    "id": "92c9f27d",
-    "title": "Financial Viability Analysis",
-    "description": "Evaluate the financial feasibility, pricing, and potential ROI for Test Goal for Deduplication Check",
-    "assigned_to": "research",
+    "id": "28673df3",
+    "title": "Financial Viability Modeling",
+    "description": "Model the revenue potential and financial viability for Test Goal for Deduplication Check",
+    "assigned_to": "finance",
     "assigned_type": "worker",
     "priority": 3,
     "dependencies": [
-      "88cbc35c"
+      "d7e067b3"
     ],
-    "status": "completed",
-    "created_at": "2026-08-10T13:44:33.577814",
-    "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.366382",
-    "result": {
-      "task_id": "92c9f27d",
-      "task_title": "Financial Viability Analysis",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
-  },
-  {
-    "id": "562d5f3a",
-    "title": "Acquisition Strategy",
-    "description": "Build a targeted lead database and outreach campaign for Test Goal for Deduplication Check",
-    "assigned_to": "research",
-    "assigned_type": "worker",
-    "priority": 4,
-    "dependencies": [
-      "92c9f27d"
-    ],
-    "status": "completed",
-    "created_at": "2026-08-10T13:44:33.577814",
-    "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.368984",
-    "result": {
-      "task_id": "562d5f3a",
-      "task_title": "Acquisition Strategy",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
-  },
-  {
-    "id": "914324f0",
-    "title": "Marketing Asset Generation",
-    "description": "Develop compelling messaging, landing page copy, and marketing assets for Test Goal for Deduplication Check",
-    "assigned_to": "research",
-    "assigned_type": "worker",
-    "priority": 5,
-    "dependencies": [
-      "562d5f3a"
-    ],
-    "status": "completed",
-    "created_at": "2026-08-10T13:44:33.577814",
-    "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.371740",
-    "result": {
-      "task_id": "914324f0",
-      "task_title": "Marketing Asset Generation",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
-  },
-  {
-    "id": "55004d49",
-    "title": "Task 1",
-    "description": "desc",
-    "assigned_to": "research",
-    "assigned_type": "worker",
-    "priority": 5,
-    "dependencies": [],
-    "status": "completed",
-    "created_at": "2026-08-10T13:45:28.358150",
-    "started_at": null,
-    "completed_at": "2026-08-10T13:45:28.374640",
-    "result": {
-      "task_id": "55004d49",
-      "task_title": "Task 1",
-      "success": true,
-      "output": "result ok",
-      "error": null,
-      "execution_time_ms": 10.0
-    }
-  },
-  {
-    "id": "ae5323aa",
-    "title": "Task 1",
-    "description": "first",
-    "assigned_to": "research",
-    "assigned_type": "worker",
-    "priority": 5,
-    "dependencies": [],
-    "status": "ready",
-    "created_at": "2026-08-10T13:45:33.850221",
+    "status": "pending",
+    "created_at": "2026-08-10T13:53:42.193688",
     "started_at": null,
     "completed_at": null,
     "result": null

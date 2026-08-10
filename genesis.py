@@ -466,15 +466,13 @@ def sync_git_artifacts() -> None:
 def build_task_plan(goal):
     """
     Ask the TaskPlanner to decompose goal, create Tasks, and load the queue.
-    If the queue already has active tasks, reuse them to prevent duplicate task planning.
+    If the queue is not empty, reuse existing tasks to prevent duplicate task planning.
     Returns (task_count, task_titles_list).
     """
-    # Deduplication check: reuse active tasks if queue is not empty
+    # Deduplication check: reuse existing tasks if queue is not empty
     if not TASK_QUEUE.is_empty():
         all_tasks = TASK_QUEUE.get_all()
-        active = [t for t in all_tasks if t.status in (TaskStatus.READY, TaskStatus.PENDING, TaskStatus.RUNNING)]
-        if active:
-            return len(all_tasks), [t.title for t in all_tasks]
+        return len(all_tasks), [t.title for t in all_tasks]
 
     task_dicts = PLANNER.plan_tasks(
         goal,

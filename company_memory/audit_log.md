@@ -64,3 +64,10 @@
 | APPROVED | proposal_20260810_125023_acquisition___find_dental_practices.md | 2026-08-10 13:46:32 |  |
 | APPROVED | proposal_20260810_130837_finance___launch_dentalreview_ai_version.md | 2026-08-10 13:46:32 |  |
 | REJECTED | proposal_20260810_130943_acquisition___launch_dentalreview_ai_ver.md | 2026-08-10 13:46:32 | Rejected in Batch |
+| APPROVED | proposal_20260810_130755_research___launch_dentalreview_ai_versio.md | 2026-08-10 13:53:24 |  |
+| APPROVED | proposal_20260810_130913_marketing___launch_dentalreview_ai_versi.md | 2026-08-10 13:53:35 |  |
+| REJECTED | proposal_20260810_135355_acquisition___founder_directive___strate.md | 2026-08-10 13:54:14 | Batch Reject Test |
+| APPROVED | proposal_20260810_131048_research___break_the_product_execution_r.md | 2026-08-10 13:54:14 |  |
+| APPROVED | proposal_20260810_131135_finance___break_the_product_execution_ro.md | 2026-08-10 13:54:14 |  |
+| APPROVED | proposal_20260810_131213_acquisition___break_the_product_executio.md | 2026-08-10 13:54:14 |  |
+| REJECTED | proposal_20260810_131259_research___optimize_only_for_speed_to_fi.md | 2026-08-10 13:54:14 | Rejected in Batch |
