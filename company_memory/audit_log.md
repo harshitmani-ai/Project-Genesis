@@ -44,3 +44,13 @@
 | APPROVED | proposal_20260810_000342_acquisition___perform_deep_customer_vali.md | 2026-08-10 12:57:09 |  |
 | APPROVED | proposal_20260810_000705_marketing___create_a_complete_business_p.md | 2026-08-10 12:57:09 |  |
 | REJECTED | proposal_20260810_001110_research___design_the_core_technical_arc.md | 2026-08-10 12:57:09 | Rejected in Batch |
+| REJECTED | proposal_20260810_131354_acquisition___founder_directive___strate.md | 2026-08-10 13:13:57 | Batch Reject Test |
+| APPROVED | proposal_20260810_000656_acquisition___create_a_complete_business.md | 2026-08-10 13:13:57 |  |
+| APPROVED | proposal_20260810_000714_finance___create_a_complete_business_pla.md | 2026-08-10 13:13:57 |  |
+| APPROVED | proposal_20260810_002437_research___research_the_market_opportuni.md | 2026-08-10 13:13:57 |  |
+| REJECTED | proposal_20260810_004439_research___evaluate_technical_feasibilit.md | 2026-08-10 13:13:57 | Rejected in Batch |
+| REJECTED | proposal_20260810_133559_acquisition___founder_directive___strate.md | 2026-08-10 13:36:19 | Batch Reject Test |
+| APPROVED | proposal_20260810_002434_acquisition___find_dental_practices.md | 2026-08-10 13:36:19 |  |
+| APPROVED | proposal_20260810_004433_research___research_specific_pain_points.md | 2026-08-10 13:36:19 |  |
+| APPROVED | proposal_20260810_004501_marketing___evaluate_technical_feasibili.md | 2026-08-10 13:36:19 |  |
+| REJECTED | proposal_20260810_004524_finance___calculate_projected_revenue__c.md | 2026-08-10 13:36:19 | Rejected in Batch |

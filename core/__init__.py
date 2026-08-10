@@ -49,6 +49,7 @@ from core.tool_manager import (
     ToolResult,
     WebSearchTool,
 )
+from core.report_manager import ReportManager
 from core.worker_identity import WorkerIdentity
 from core.worker_report import ReportStatus, WorkerReport
 
@@ -65,6 +66,7 @@ __all__ = [
     "DEFAULT_CONNECTOR_MANAGER",
     "FinalCompanyReport",
     "MemoryGovernor",
+    "ReportManager",
     "LogLevel",
     "WorkerLogger",
     "MemoryInterface",

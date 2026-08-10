@@ -16,10 +16,12 @@ from core.task_queue import Task, TaskQueue, TaskResult, TaskStatus
 from core.company_dashboard import CompanyDashboard
 from core.autopilot import AutoPilotEngine
 from core.connector_manager import DEFAULT_CONNECTOR_MANAGER, ConnectorManager
+from core.report_manager import ReportManager
 
 
 COMPANY_MEMORY_FILE = Path("company_memory.md")
 REPORTS_FOLDER = Path("research_reports")
+REPORT_MANAGER = ReportManager()
 
 # ── Worker Registry ──────────────────────────────────────────────────────────
 # Central lookup table for all migrated workers.
@@ -131,7 +133,61 @@ def show_proposals():
 def is_proposal_command(command: str) -> bool:
     """Return True if command is any local proposal management command."""
     cmd = command.lower().strip()
-    return "proposal" in cmd or "proposals" in cmd
+    return ("proposal" in cmd or "proposals" in cmd) and not is_report_command(cmd)
+
+
+def is_report_command(command: str) -> bool:
+    """Return True if command is a request to open, view, or read a specific report file."""
+    cmd = command.lower().strip()
+    if cmd in {"latest report", "open latest report", "show latest report", "read latest report", "latest"}:
+        return True
+    triggers = [
+        "show report",
+        "open report",
+        "read report",
+        "view report",
+        "display report",
+        "get report",
+    ]
+    return any(cmd.startswith(t) for t in triggers)
+
+
+def extract_report_identifier(command: str) -> tuple[str, int | None]:
+    """Extract report identifier (full name, stem, number, or 'latest') and optional choice index."""
+    cmd = command.strip()
+    cmd_lower = cmd.lower()
+
+    if cmd_lower in {"latest report", "open latest report", "show latest report", "read latest report", "latest"}:
+        return "latest", None
+
+    prefixes = [
+        "show report",
+        "open report",
+        "read report",
+        "view report",
+        "display report",
+        "get report",
+    ]
+    raw = cmd
+    for p in prefixes:
+        if cmd_lower.startswith(p):
+            raw = cmd[len(p):].strip()
+            break
+
+    tokens = raw.split()
+    if not tokens:
+        return "latest", None
+
+    choice_idx = None
+    if len(tokens) >= 2 and tokens[-1].isdigit():
+        try:
+            choice_idx = int(tokens[-1])
+            tokens = tokens[:-1]
+        except ValueError:
+            pass
+
+    identifier = " ".join(tokens).strip()
+    return identifier, choice_idx
 
 
 def extract_proposal_identifier(command: str) -> str:
@@ -518,11 +574,12 @@ def execute_next_task():
 # ── Phase 13: Company Dashboard helpers ──────────────────────────────────────
 
 def should_show_dashboard(command):
-    """Return True for any morning / dashboard / status greeting commands."""
+    """Return True for any explicit morning / dashboard / status greeting commands."""
     cmd = command.lower().strip()
-    if is_proposal_command(cmd):
+    if is_proposal_command(cmd) or "founder directive" in cmd or cmd.startswith("founder directive"):
         return False
-    dashboard_triggers = [
+
+    exact_triggers = {
         "good morning genesis",
         "good morning",
         "morning genesis",
@@ -534,9 +591,20 @@ def should_show_dashboard(command):
         "company overview",
         "what's our status",
         "how are we doing",
+        "status",
+    }
+    if cmd in exact_triggers:
+        return True
+
+    prefix_triggers = [
+        "good morning",
+        "company status",
+        "show dashboard",
+        "company overview",
+        "what's our status",
+        "how are we doing",
     ]
-    cmd = command.lower().strip()
-    return any(trigger in cmd for trigger in dashboard_triggers)
+    return any(cmd.startswith(prefix) for prefix in prefix_triggers)
 
 
 def should_show_weekly_summary(command):
@@ -1179,9 +1247,11 @@ def handle_command(command):
     if is_proposal_command(command):
         # Fallback for any other proposal command: handle locally with 0 LLM calls
         print()
-        print(show_proposals())
+    if is_report_command(command):
+        identifier, choice_idx = extract_report_identifier(command)
+        print()
+        print(REPORT_MANAGER.open_report(identifier, choice_index=choice_idx))
         return
-
 
     if should_run_research(command):
         target = remove_research_instruction(command)
@@ -1457,8 +1527,11 @@ def handle_command(command):
 def is_system_command(command: str) -> bool:
     """Return True if command is a single-line system, governance, status, or task command."""
     cmd = command.lower().strip()
+    if "founder directive" in cmd or cmd.startswith("founder directive"):
+        return False
     return (
         is_proposal_command(cmd)
+        or is_report_command(cmd)
         or should_review_all_proposals(cmd)
         or should_approve_selected_proposals(cmd)
         or should_reject_selected_proposals(cmd)
@@ -1500,10 +1573,11 @@ def get_multiline_input():
     if is_system_command(first_line):
         return first_line
 
-    # Standard single-line commands execute immediately on Enter unless multiline block indicated
-    if not first_line.endswith("\\") and not first_line.startswith('"""') and not first_line.startswith("'''"):
-        return first_line
+    # If single-line entry ends with explicit END marker
+    if first_line.endswith(" END") or first_line.endswith("\tEND"):
+        return first_line[:-3].strip()
 
+    # Multiline directive: collect all lines until 'END' is typed on a new line
     lines = [first_line]
     while True:
         line = input("... ")
@@ -1549,9 +1623,6 @@ def main():
             print("Genesis could not complete the request.")
             print("Error:", error)
 
-            print()
-            print("Genesis could not complete the request.")
-            print("Error:", error)
 
 
 if __name__ == "__main__":
